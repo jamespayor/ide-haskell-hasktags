@@ -27,6 +27,7 @@ export async function selectListView(
         didConfirmSelection: (item) => {
           resolve(item)
         },
+        maxResults: 400, // Avoid terrifying slowdowns when there are lots of symbols.
       })
       select.element.classList.add('ide-haskell')
       panel = atom.workspace.addModalPanel({
