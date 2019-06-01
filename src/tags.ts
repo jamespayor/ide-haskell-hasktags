@@ -1,7 +1,7 @@
 import { CompositeDisposable, FilesystemChangeEvent } from 'atom'
 import { EOL } from 'os'
 import { sep } from 'path'
-import { execFile } from 'child_process'
+import { exec, execFile } from 'child_process'
 
 interface LineRec {
   context: string
@@ -49,8 +49,8 @@ export class Tags {
     if (atom.config.get('ide-haskell-hasktags.ignoreCloseImplementation')) {
       args.push('--ignore-close-implementation')
     }
-    args.push(path)
-    execFile(cmd, args, { env, encoding: 'utf8', maxBuffer: Infinity }, (error, data, stderr) => {
+    args.push(path.replace(/\\/g, "/")) // This find-replace ensures no shenanigans on Windows, because we have to do some hacky stuff below =(
+    const callback = (error, data, stderr) => {
       try {
         if (error) {
           switch (stderr) {
@@ -95,7 +95,13 @@ export class Tags {
       } finally {
         this.inProgress = false
       }
-    })
+    }
+    if (process.platform === 'win32') {
+      // We have to hackily cause Windows to support UTF-8 by changing the active "code page" with chcp =(
+      exec('chcp 65001 && "' + cmd + '"' + (args ? ' "' + args.join('" "') + '"' : ''), { env, encoding: 'utf8', maxBuffer: Infinity }, callback)
+    } else {
+      execFile(cmd, args, { env, encoding: 'utf8', maxBuffer: Infinity }, callback)
+    }
   }
 
   public listTags(uri?: string) {
