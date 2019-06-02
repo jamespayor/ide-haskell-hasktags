@@ -1,7 +1,6 @@
 import { CompositeDisposable, TextEditor } from 'atom'
 import { Tags } from './tags'
 import { selectListView } from './tags-list-view'
-import { IUPIRegistration } from 'atom-haskell-upi'
 
 export { config } from './config'
 
@@ -68,14 +67,48 @@ export function activate() {
         if (!path) return
         void showList(editor, tagsInstance.listTags(path))
       },
+      'ide-haskell-hasktags:go-to-declaration': ({ currentTarget }) => {
+        if (!active) return
+        const editor: TextEditor = (currentTarget as any).getModel()
+        const buffer = editor.getBuffer()
+        const crange = editor.getLastSelection().getBufferRange()
+        const { start, end } = buffer.rangeForRow(crange.start.row, false)
+        const crange2 = { start: crange.start, end: crange.end }
+        const left = buffer.getTextInRange([start, crange.start])
+        crange2.start.column = left.search(/[\w']*$/)
+        const right = buffer.getTextInRange([crange.end, end])
+        crange2.end.column += right.search(/[^\w']|$/)
+        const symbol = buffer.getTextInRange(crange2)
+        const tags = tagsInstance.findTag(symbol)
+        switch (tags.length) {
+          case 0:
+            return
+          case 1:
+            void open(editor, tags[0])
+            break
+          default:
+            void showList(editor, tags)
+        }
+      },
     }),
   )
+
   disposables.add(
     atom.contextMenu.add({
       'atom-text-editor[data-grammar~="haskell"]': [
         {
           label: 'Show File Tags',
           command: 'ide-haskell-hasktags:show-file-tags',
+        },
+      ],
+    }),
+  )
+  disposables.add(
+    atom.contextMenu.add({
+      'atom-text-editor[data-grammar~="haskell"]': [
+        {
+          label: 'Go to Declaration',
+          command: 'ide-haskell-hasktags:go-to-declaration',
         },
       ],
     }),
@@ -102,58 +135,6 @@ export function activate() {
       },
     ]),
   )
-}
-
-export function consumeUPI(register: IUPIRegistration) {
-  const upi = register({
-    name: 'ide-haskell-hasktags',
-  })
-  const disp = new CompositeDisposable()
-  disposables.add(disp)
-  disp.add(upi)
-
-  disp.add(
-    atom.commands.add('atom-text-editor', {
-      'ide-haskell-hasktags:go-to-declaration': ({ currentTarget, detail }) => {
-        if (!active) return
-        const editor: TextEditor = (currentTarget as any).getModel()
-        const buffer = editor.getBuffer()
-        const er = upi.getEventRange(editor, detail)
-        if (!er) return
-        const { crange } = er
-        const { start, end } = buffer.rangeForRow(crange.start.row, false)
-        const crange2 = { start: crange.start, end: crange.end }
-        const left = buffer.getTextInRange([start, crange.start])
-        crange2.start.column = left.search(/[\w']*$/)
-        const right = buffer.getTextInRange([crange.end, end])
-        crange2.end.column += right.search(/[^\w']|$/)
-        const symbol = buffer.getTextInRange(crange2)
-        const tags = tagsInstance.findTag(symbol)
-        switch (tags.length) {
-          case 0:
-            return
-          case 1:
-            void open(editor, tags[0])
-            break
-          default:
-            void showList(editor, tags)
-        }
-      },
-    }),
-  )
-
-  disp.add(
-    atom.contextMenu.add({
-      'atom-text-editor[data-grammar~="haskell"]': [
-        {
-          label: 'Go to Declaration',
-          command: 'ide-haskell-hasktags:go-to-declaration',
-        },
-      ],
-    }),
-  )
-
-  return disp
 }
 
 export function deactivate() {
